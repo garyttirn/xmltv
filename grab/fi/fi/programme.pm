@@ -238,7 +238,8 @@ sub dump {
   #   description: Amerikkalainen animaatiosarja....
   #
   elsif ((defined($description))              &&
-	 (exists $series_description{$title}) &&
+  #KTi disable check for series, process season episodes if those are found
+  #	 (exists $series_description{$title}) &&
 	 (($left, $special, $right) = ($description =~ $match_description))) {
     my($desc_subtitle, $desc_total);
 
@@ -308,7 +309,8 @@ sub dump {
 	}
 	debug(3, "XMLTV series title '$title' episode '$left'");
     }
-    ($subtitle, $description) = ($left, $right);
+    #KTi disable modification of description, keep series & episode info
+    #($subtitle, $description) = ($left, $right);
   }
 
   # XMLTV programme desciptor (mandatory parts)
