@@ -1,13 +1,10 @@
-# Dockerfile to generate Ubuntu 21.04 "Hirsute Hippo" build container for XMLTV
+# Dockerfile to generate Debian 13 "Trixie" build container for XMLTV
 
-FROM ubuntu:hirsute
+FROM debian:trixie
 
 LABEL maintainer="Nick Morrott <knowledgejunkie@gmail.com>"
 
-ENV DEBIAN_FRONTEND 'noninteractive'
-ENV TZ 'Europe/London'
-
-RUN echo $TZ > /etc/timezone
+RUN echo "deb http://deb.debian.org/debian trixie main" > /etc/apt/sources.list
 
 RUN apt-get update && apt-get -y install \
     libarchive-zip-perl \
@@ -62,9 +59,4 @@ RUN apt-get update && apt-get -y install \
     make \
     perl \
     perl-tk \
-    tzdata \
     --no-install-recommends
-
-RUN rm /etc/localtime && \
-    ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && \
-    dpkg-reconfigure -f noninteractive tzdata

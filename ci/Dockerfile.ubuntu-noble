@@ -1,6 +1,6 @@
-# Dockerfile to generate Ubuntu 21.04 "Hirsute Hippo" build container for XMLTV
+# Dockerfile to generate Ubuntu 24.04 "Noble Numbat" build container for XMLTV
 
-FROM ubuntu:hirsute
+FROM ubuntu:noble
 
 LABEL maintainer="Nick Morrott <knowledgejunkie@gmail.com>"
 

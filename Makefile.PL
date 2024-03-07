@@ -58,7 +58,7 @@ GetOptions('strict-deps'  => \$opt_strictdeps,  # be strict about dependencies
           );
 
 our $VERSION;
-$VERSION = '1.2.1';
+$VERSION = '1.3.0';
 
 # Fragment of Makefile text to give the directory where files should
 # be installed.  The extra '.' in the middle of the path is to avoid
@@ -295,17 +295,6 @@ my @opt_components
                     'URI::URL'          => 0, },
      },
 
-     { name => 'tv_grab_eu_epgdata',
-       blurb => '$$ Grabber for some European countries (epgdata.com)',
-       exes => [ 'grab/eu_epgdata/tv_grab_eu_epgdata' ],
-       share_files => { 'grab/eu_epgdata/channel_ids' => 'tv_grab_eu_epgdata/channel_ids' },
-       prereqs => { 'Archive::Zip'   => 0,
-                    'Date::Format'   => 0,
-                    'DateTime::Format::Strptime' => 0,
-                    'HTML::Entities' => 0,
-                    'HTTP::Request::Common' => 0, },
-     },
-
      { name  => 'tv_grab_fi',
        blurb => 'Grabber for Finland',
        exes => [ 'grab/fi/tv_grab_fi' ],
@@ -445,16 +434,16 @@ my @opt_components
        prereqs => { 'XML::LibXML' => 0, },
      },
 
-     { name => 'tv_grab_pt_meo',
-       blurb => 'Grabber for Portugal (MEO)',
-       exes => [ 'grab/pt_meo/tv_grab_pt_meo' ],
-       prereqs => { 'DateTime'        => 0,
-                    'Encode'          => 0,
-                    'JSON'            => 0,
-                    'IO::File'        => 0,
-                    'File::Path'      => 0,
-                    'File::Basename'  => 0, },
-     },
+##   { name => 'tv_grab_pt_meo',
+##     blurb => 'Grabber for Portugal (MEO)',
+##     exes => [ 'grab/pt_meo/tv_grab_pt_meo' ],
+##     prereqs => { 'DateTime'        => 0,
+##                  'Encode'          => 0,
+##                  'JSON'            => 0,
+##                  'IO::File'        => 0,
+##                  'File::Path'      => 0,
+##                  'File::Basename'  => 0, },
+##   },
 
      { name => 'tv_grab_pt_vodafone',
        blurb => 'Grabber for Portugal (Vodafone)',
@@ -466,20 +455,31 @@ my @opt_components
                     'URI::Encode' => 0, },
      },
 
-     { name => 'tv_grab_uk_tvguide',
-       blurb => 'Grabber for UK and Ireland using TV Guide website',
-       exes => [ 'grab/uk_tvguide/tv_grab_uk_tvguide' ],
-       share_files => {
-            'grab/uk_tvguide/tv_grab_uk_tvguide.map.conf'
-                => 'tv_grab_uk_tvguide/tv_grab_uk_tvguide.map.conf',
-       },
-       prereqs => { 'Date::Parse'       => 0,
-                    'DateTime'          => 0,
-                    'HTML::TreeBuilder' => 0,
-                    'HTTP::Cache::Transparent' => 1.0,
-                    'HTTP::Cookies'     => 0,
-                    'URI::Escape'       => 0, },
+     { name => 'tv_grab_uk_freeview',
+       blurb => 'Grabber for UK using Freeview website',
+       exes => [ 'grab/uk_freeview/tv_grab_uk_freeview' ],
+       prereqs => { 'DateTime'        => 0,
+                    'Encode'          => 0,
+                    'JSON'            => 0,
+                    'IO::File'        => 0,
+                    'File::Path'      => 0,
+                    'File::Basename'  => 0, },
      },
+
+##   { name => 'tv_grab_uk_tvguide',
+##     blurb => 'Grabber for UK and Ireland using TV Guide website',
+##     exes => [ 'grab/uk_tvguide/tv_grab_uk_tvguide' ],
+##     share_files => {
+##          'grab/uk_tvguide/tv_grab_uk_tvguide.map.conf'
+##              => 'tv_grab_uk_tvguide/tv_grab_uk_tvguide.map.conf',
+##     },
+##     prereqs => { 'Date::Parse'       => 0,
+##                  'DateTime'          => 0,
+##                  'HTML::TreeBuilder' => 0,
+##                  'HTTP::Cache::Transparent' => 1.0,
+##                  'HTTP::Cookies'     => 0,
+##                  'URI::Escape'       => 0, },
+##   },
 
      { name => 'tv_grab_zz_sdjson',
        blurb => '$$ Grabber for schedulesDirect.org SD-JSON service (many countries)',

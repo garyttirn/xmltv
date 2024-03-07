@@ -1,6 +1,6 @@
-# Dockerfile to generate Ubuntu 21.04 "Hirsute Hippo" build container for XMLTV
+# Dockerfile to generate Ubuntu 23.10 "Mantic Minotaur" build container for XMLTV
 
-FROM ubuntu:hirsute
+FROM ubuntu:mantic
 
 LABEL maintainer="Nick Morrott <knowledgejunkie@gmail.com>"
 

@@ -1,16 +1,14 @@
-# Dockerfile to generate Rocky Linux 9 build container for XMLTV
+# Dockerfile to generate Fedora 40 build container for XMLTV
 
-FROM rockylinux:9
+FROM fedora:40
 
 LABEL maintainer="Nick Morrott <knowledgejunkie@gmail.com>"
 
-RUN dnf -y --nogpgcheck install epel-release dnf-plugins-core && \
-    dnf config-manager --set-enabled powertools epel
-
-RUN dnf -y install \
+RUN yum -y install \
     make \
-    perl-core \
+    perl \
     perl-Archive-Zip \
+    perl-CGI \
     perl-Data-Dump \
     perl-Date-Calc \
     perl-Date-Manip \
@@ -35,6 +33,7 @@ RUN dnf -y install \
     perl-libwww-perl \
     perl-Lingua-Preferred \
     perl-List-MoreUtils \
+    perl-Log-TraceMessages \
     perl-LWP-Protocol-https \
     perl-LWP-UserAgent-Determined \
     perl-PerlIO-gzip \
