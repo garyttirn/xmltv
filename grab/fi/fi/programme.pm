@@ -243,9 +243,10 @@ sub dump {
 	 (($left, $special, $right) = ($description =~ $match_description))) {
     my($desc_subtitle, $desc_total);
 
+    # KTi check for "osa" and "jakso".
     # Check for "Kausi <season>, osa <episode>. <maybe sub-title>...."
-    if (my($desc_season, $desc_episode, $remainder) =
-	($description =~ m/^Kausi\s+(\d+),\s+osa\s+(\d+)\.\s*(.*)$/)) {
+    if (my($desc_season, $filler, $desc_episode, $remainder) =
+	($description =~ m/^Kausi\s+(\d+),\s+(osa|jakso)\s+(\d+)\.\s*(.*)$/)) {
 	$season  = $desc_season;
 	$episode = $desc_episode;
 
