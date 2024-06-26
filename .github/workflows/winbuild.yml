@@ -103,16 +103,16 @@ jobs:
         working-directory: /temp
         run: |
           # cpan -g  didn't work, so...
-          wget https://cpan.metacpan.org/authors/id/R/RS/RSCHUPP/PAR-Packer-1.054.tar.gz
-          gzip -d PAR-Packer-1.054.tar.gz
-          tar xf PAR-Packer-1.054.tar
-          cd PAR-Packer-1.054
-          sed -i '/if ( rc == -1 && errno != EEXIST)/i\    if ( rc == 0 ) fprintf(stderr,\"Note: This will take a while on first run\\\n\");' myldr/boot.c
+          wget https://cpan.metacpan.org/authors/id/R/RS/RSCHUPP/PAR-Packer-1.063.tar.gz
+          gzip -d PAR-Packer-1.063.tar.gz
+          tar xf PAR-Packer-1.063.tar
+          cd PAR-Packer-1.063
+          sed -i '/if ( rc == -1 && errno != EEXIST)/i\    if ( rc == 0 ) fprintf(stderr,\"Note: This will take up to 5 minutes on first run\\\n\");' myldr/boot.c
 
       - name: Install Packer
         working-directory: /temp
         run: |
-          cd PAR-Packer-1.054
+          cd PAR-Packer-1.063
           cpanm --notest --no-interactive .
 
       - name: Show content of log files on failure
@@ -193,7 +193,7 @@ jobs:
 
       - name: Publish xmltv.exe artifact
         if: github.event_name == 'push'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ env.EXEFILE }}
           path: artifacts
@@ -218,7 +218,7 @@ jobs:
 
       - name: Publish zip artifact
         if: github.event_name == 'push'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.files.outputs.zipfilename }}
           path: artifacts
@@ -271,13 +271,13 @@ jobs:
 
       - name: Fetch file from windows-build
         # actions/download-artifact does only one artifact (or all)
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: ${{ env.EXEFILE }}
           # artifacts/ now available in this job
 
       - name: Fetch file from windows-build
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: ${{ env.ZIPFILE }}
 

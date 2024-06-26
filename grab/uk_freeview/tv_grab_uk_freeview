@@ -171,7 +171,7 @@ XMLTV::Ask::init($opt_gui);
 # Initialise the web page cache
 if ($opt_debug) {
 HTTP::Cache::Transparent::init( {
-	BasePath => '/root/.xmltv/cache',
+	BasePath => '/tmp/.xmltv/cache',
 	NoUpdate => 60*60,			# cache time in seconds
 	MaxAge => 24,				# flush time in hours
 	Verbose => $opt_debug,
@@ -371,13 +371,17 @@ foreach my $ch_did (@channels) {
 
 
 # time limits for grab
-my $today_date = DateTime->today(time_zone => 'Europe/Lisbon');
-my $grab_start = $today_date->epoch() + ($opt_offset * 86400);
+my $today_date = DateTime->today(time_zone => 'Europe/London');
+my $grab_start = $today_date->epoch + ($opt_offset * 86400);
 my $grab_stop  = $grab_start + ($opt_days * 86400);
-print STDERR "\n start/end grab: $grab_start $grab_stop \n" if $opt_debug;
 
-my $dt_start = DateTime->from_epoch( epoch => $grab_start );
-my $dt_stop  = DateTime->from_epoch( epoch => $grab_stop );
+my $dt_start = DateTime->from_epoch( epoch => $grab_start )->set_time_zone('Europe/London');
+my $dt_stop  = DateTime->from_epoch( epoch => $grab_stop )->set_time_zone('Europe/London');
+
+$grab_start += ($dt_start->is_dst * 3600);
+$grab_stop  += ($dt_stop->is_dst * 3600);
+
+print STDERR "start/end grab: $grab_start $grab_stop \n" if $opt_debug;
 
 
 # get the programmes and write the <programme> elements
@@ -496,7 +500,7 @@ sub get_programmes {
 	t "Getting programmes \n";
 
 	my $programmes = {};
-	my $start_time = $grab_start;				# note start_time has to be xxxT00:00:00
+	my $start_time = $grab_start;				# note start_time has to be xxxT00:00:00 (in local time)
 
 	while ( $start_time < $grab_stop ) {
 
@@ -547,6 +551,12 @@ sub get_programmes {
 				$p_rating	= '';	# needs 'details' page
 				$p_subtitle	= $prog->{'secondary_title'};
 
+				# progs with no title are typically ones where the schedule is not yet known (e.g. Filmstream ch.269 on day 6)
+				# we probably don't want these placeholders ("TBA") polluting our EPG so let's drop them
+				if (!defined $p_title) {
+					print STDERR "p_title undefined $ch_xmltv_id at $prog->{'start_time'}"."\n" if $opt_debug;
+					next;
+				}
 
 				# get prog times
 				my ($y,$m,$d,$h,$i,$s,$z) = $prog->{'start_time'} =~ /^(\d\d\d\d)-(\d\d)-(\d\d)T(\d\d):(\d\d):(\d\d)\+(\d\d\d\d)$/;
@@ -635,7 +645,7 @@ sub get_programmes {
 							my $fullname = (defined $fname ? $fname . ' ' : '') . $lname;
 							my $attr = $roles{lc($role)} if defined $role;
 
-							push (@{$p_credits{$attr}}, (defined $character ? [ $fullname, $character ] : $fullname ) ) if defined $attr;
+							push (@{$p_credits{$attr}}, (defined $character ? [ toUTF8($fullname), toUTF8($character) ] : toUTF8($fullname) ) ) if defined $attr;
 						}
 
 						# we can get the Series/Ep in the synopsis for some channels (e.g. Sky Arts)
