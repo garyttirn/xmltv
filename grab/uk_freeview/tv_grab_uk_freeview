@@ -169,14 +169,14 @@ XMLTV::Ask::init($opt_gui);
 
 # ------------------------------------------------------------------ #
 # Initialise the web page cache
-if ($opt_debug) {
+my $cachedir = get_default_cachedir();
+init_cachedir($cachedir);
 HTTP::Cache::Transparent::init( {
-	BasePath => '/tmp/.xmltv/cache',
+	BasePath => $cachedir,
 	NoUpdate => 60*60,			# cache time in seconds
 	MaxAge => 24,				# flush time in hours
 	Verbose => $opt_debug,
 } );
-}
 
 
 
@@ -211,6 +211,9 @@ else { die }
 # Default values until we get the config file.
 our $channel_format = 'label';		# format for channel_if (label (e.g. 17536) vs. number (e.g. 101))
 our $region_id = '64257';			# region id for which to retrieve programmes (e.g. 64257 = London)
+our $icon_ch_qs = '?w=160';			# query string to append to channel icon img
+our $icon_pg_qs = '?w=800';			# query string to append to programme icon img
+
 
 # Lists of channels
 #   note this varies according to network_id (region) e.g. BBC1 is 4164 in London but 4165 in W.Mids.
@@ -237,6 +240,11 @@ if ($mode eq 'configure') {
 	my $postcode = ask('Enter your postcode');
 	$region_id = get_region($postcode);
 	print CONF "region=$region_id\n";
+
+	# Icon width (#242 : credit nhathaway)
+	#  stub to append to icon url for (1) channels and (2) programmes. This sets the image width returned by the Freeview img server.
+	print CONF "iconc=?w=160\n";
+	print CONF "iconp=?w=800\n";
 
 	# Get the current list of channels - note this varies according to network_id (region) 
 	say('Fetching channels list for your region');
@@ -291,6 +299,12 @@ foreach (@config_lines) {
 	elsif (/^region=(.+)\s*$/) {
 		$region_id = $1;
 	}
+	elsif (/^iconc=(.+)\s*$/) {
+		$icon_ch_qs = $1;
+	}
+	elsif (/^iconp=(.+)\s*$/) {
+		$icon_pg_qs = $1;
+	}
 	else {
 		warn "$config_file:$line_num: bad line\n";
 	}
@@ -305,8 +319,11 @@ if (scalar @ch_all == 0) {
 }
 
 
+print STDERR "using cache '$cachedir' \n" if $opt_debug;
 print STDERR "using channel format '$channel_format' \n" if $opt_debug;
 print STDERR "using region id '$region_id' \n" if $opt_debug;
+print STDERR "using icon ch string '$icon_ch_qs' \n" if $opt_debug;
+print STDERR "using icon pg string '$icon_pg_qs' \n" if $opt_debug;
 print STDERR "fetch ".scalar(@channels)." channels \n" if $opt_debug;
 
 
@@ -391,6 +408,7 @@ foreach (get_programmes(\@channels)) {
 	$some = 1;
 }
 if (not $some) {
+	$writer->end();
   die "no programmes found\n" unless $some;
 }
 
@@ -418,6 +436,22 @@ BEGIN {
 		*t = \&Log::TraceMessages::t;
 		*d = \&Log::TraceMessages::d;
 		Log::TraceMessages::check_argv();
+	}
+}
+
+# Get location of cache files
+sub get_default_dir {
+	my $winhome = $ENV{HOMEDRIVE} . $ENV{HOMEPATH}  if defined( $ENV{HOMEDRIVE} ) and defined( $ENV{HOMEPATH} );
+	my $home = $ENV{HOME} || $winhome || ".";
+	return $home;
+}
+sub get_default_cachedir {
+	return get_default_dir() . "/.xmltv/cache";
+}
+sub init_cachedir {
+	my $path  = @_;
+	if ( not -d $path ) {
+		mkpath( $path ) or die "Failed to create cache-directory $path: $@";
 	}
 }
 
@@ -453,6 +487,12 @@ sub fix_utf8( $ ) {
 	$_[0] =~ s/\x{2039}/\xE2\x80\x98/og;      # open single quote
 	$_[0] =~ s/\x{203a}/\xE2\x80\x99/og;      # close single quote
 
+	# invalid control codes
+	$_[0] =~ s/\x{0019}/\x27/og;              # apostrophe (#239 dodgy character in AlJazeera data - "Greece\u0019s state-owned broadcaster")
+	$_[0] =~ s/\x{0018}\x{0018}/\x22/og;      # (#244 dodgy character in Newsmax data - "\u0018\u0018Prime News\u0022 delivers comprehensive")
+	$_[0] =~ s/\x{0018}/\x20/og;              # (#244  -- ditto --)
+	$_[0] =~ s/[\x1c-\x1f]//og;               # (#244)
+
 	return $_[0];
 }
 
@@ -484,6 +524,20 @@ sub trim_all( $ ) {
 	return $_[0];
 }
 
+# Prevent croak on empty JSON content
+sub fudgeprogs( $ ) {
+    # site sometimes return no content (even though status code 200)
+    #  this is naughty: it should really return empty JSON string
+    #  to prevent JSON->decode() croaking on empty string we'll invent some data
+    #
+    my $content = shift;
+    if (length($content) == 0) {
+       print STDERR 'no content - creating empty file'."\n" if $opt_debug;
+       return '{"status":"success","data":{"programs":[]}}';
+    }
+    return $content;
+}
+
 
 sub get_programmes {
 	my ($ch_xmltv_ids) = @_;
@@ -509,7 +563,10 @@ sub get_programmes {
 		t $url;
 
 		# fetch json content (will be decoded from utf8)
-		my $data = get_nice_json( $url );
+		# (#244) my $data = get_nice_json( $url, \&fudgeprogs );
+		# fetch a url with up to 5 retries
+		my $data = fetch_url_json( $url, 'get', undef, \&fudgeprogs );
+
 		if ($data->{status} ne 'success') { print STDERR " PROGRAMME fetch failed : ".$data->{status}."\n" if $opt_debug; }
 		
 		#print STDERR Dumper($data);die();
@@ -540,7 +597,7 @@ sub get_programmes {
 
 			foreach my $prog (@{ $ch->{events} }) {
 
-				my ( $p_id, $p_category, $p_title, $p_desc, $p_image, $p_duration, $p_year, $p_start, $p_stop, $p_start_epoch, $p_stop_epoch, $p_episode_num, $p_rating, $p_subtitle, %p_credits, $p_subtitles, $p_video, $p_audio, $p_new, $p_descshort, $p_onscreen );
+				my ( $p_id, $p_category, $p_title, $p_desc, $p_image, $p_duration, $p_year, $p_start, $p_stop, $p_start_epoch, $p_stop_epoch, $p_episode_num, $p_rating, $p_subtitle, %p_credits, $p_subtitles, $p_video, $p_audio, $p_new, $p_descshort, $p_onscreen, $p_signed );
 
 				$p_id		= $prog->{'uuid'};
 				$p_category	= '';	# not seen in the data
@@ -621,15 +678,19 @@ sub get_programmes {
 					t $url;
 
 					# fetch json content (will be decoded from utf8)
-					my $data = get_nice_json( $url );
+					# (#244) my $data = get_nice_json( $url, \&fudgeprogs );
+					# fetch a url with up to 5 retries
+					my $data = fetch_url_json( $url, 'get', undef, \&fudgeprogs );
+
 					if ($data->{status} ne 'success') { print STDERR " DETAILS fetch failed : ".$data->{status}."\n" if $opt_debug; }
 
 					#print STDERR Dumper($data);die();
 
 					foreach my $pg (@{ $data->{data}->{programs} }) {
 
-						$p_descshort = ( $pg->{'synopsis'}->{'short'} ) if defined $pg->{'synopsis'}->{'short'} and (defined $pg->{'synopsis'}->{'medium'} or defined $pg->{'synopsis'}->{'long'});
-						$p_desc	= ( $pg->{'synopsis'}->{'long'} or $pg->{'synopsis'}->{'medium'} or $pg->{'synopsis'}->{'short'} ) if defined $pg->{'synopsis'};
+						# issue 239 : site sends an empty array (instead of object) when synopsis is empty
+						$p_descshort = ( $pg->{'synopsis'}->{'short'} ) if ref($pg->{'synopsis'}) ne 'ARRAY' and defined $pg->{'synopsis'}->{'short'} and (defined $pg->{'synopsis'}->{'medium'} or defined $pg->{'synopsis'}->{'long'});
+						$p_desc	= ( $pg->{'synopsis'}->{'long'} or $pg->{'synopsis'}->{'medium'} or $pg->{'synopsis'}->{'short'} ) if defined $pg->{'synopsis'} and ref($pg->{'synopsis'}) ne 'ARRAY';
 						$p_image = $pg->{'image_url'} if defined $pg->{'image_url'};
 
 						# tidy the description
@@ -649,12 +710,12 @@ sub get_programmes {
 						}
 
 						# we can get the Series/Ep in the synopsis for some channels (e.g. Sky Arts)
-						#   (S5, ep 4)
+						#   (S5, ep 4)  or  (Ep2)
 						if (!defined $p_episode_num) {
 							if ( $p_desc =~ s/\s*(\((s\s*\d+)?[, ]*?(ep\s*\d+)\))(?:\s|$)//i ) {
 								($p_onscreen, $p_ser, $p_ep) = ($1, $2, $3);
-								$p_ser =~ s/^s\s*//i;
-								$p_ep  =~ s/^ep\s*//i;
+								$p_ser =~ s/^s\s*//i   if defined $p_ser;
+								$p_ep  =~ s/^ep\s*//i  if defined $p_ep;
 								$p_episode_num = (defined $p_ser ? --$p_ser : '') . ' . ' . (defined $p_ep ? --$p_ep : '') . ' . '  if (defined $p_ser || defined $p_ep);
 							}
 						}
@@ -671,19 +732,22 @@ sub get_programmes {
 							my @flags = split(',',$1);
 							foreach (@flags) {
 								if   ($_ eq 'AD') {		# there is no DTD element for 'audio described'
-								#	$p_audio = { stereo=>'audio described' };
+								#	$p_audiod = { type=>'audio-described' };
 								}
 								elsif($_ eq 'DS') {
 									$p_audio = { stereo=>'surround' };
 								}
 								elsif($_ eq 'S') {
-									$p_subtitles = { type => 'onscreen' };
+									$p_subtitles = { type=>'onscreen' };
 								}
 								elsif($_ eq 'HD') {
 									$p_video = { aspect=>'16:9', quality=>'hd'};
 								}
 								elsif($_ eq 'W') {
 									$p_video = { aspect=>'16:9' };
+								}
+								elsif($_ eq 'SL') {
+									$p_signed = { type=>'deaf-signed' };
 								}
 								else {
 									print STDERR "unknown attribute: $_\n";
@@ -718,7 +782,7 @@ sub get_programmes {
 				$prog{'category'}	= $p_category;
 				$prog{'title'}		= $p_title;
 				$prog{'desc'}		= $p_desc;
-				$prog{'icon'}   	= $p_image;
+				$prog{'icon'}   	= $p_image . $icon_pg_qs if defined $p_image;
 				$prog{'duration'}	= $p_duration;
 				$prog{'year'}		= $p_year;
 				$prog{'rating'}		= $p_rating;
@@ -732,6 +796,7 @@ sub get_programmes {
 				$prog{'new'}		= $p_new;
 				$prog{'descshort'}	= $p_descshort;
 				$prog{'onscreen'}	= $p_onscreen;
+				$prog{'signed'}		= $p_signed;
 
 
 				# store the programme avoiding duplicates
@@ -828,8 +893,9 @@ sub make_programme_hash {
 	$prog{'date'}		= $cur->{'year'} if $cur->{'year'};
 	$prog{'video'}		= $cur->{'video'} if $cur->{'video'};
 	$prog{'audio'}		= $cur->{'audio'} if $cur->{'audio'};
-	$prog{'subtitles'}	= [ $cur->{'subtitles'} ] if $cur->{'subtitles'};
 	$prog{'new'}		= $cur->{'new'} if $cur->{'new'};
+	push @{$prog{'subtitles'}},$cur->{'subtitles'} if $cur->{'subtitles'};
+	push @{$prog{'subtitles'}},$cur->{'signed'} if $cur->{'signed'};
 
 	return \%prog;
 }
@@ -869,7 +935,7 @@ sub get_channels {
 			  {
 				'channel-name'  		=> toUTF8($channel_name),
 				'display-name'  		=> [ [ toUTF8($channel_name), $LANG ] ],
-				'icon'					=> [ { 'src' => $channel_logo } ],
+				'icon'					=> [ { 'src' => $channel_logo . $icon_ch_qs } ],
 				'id'					=> $channel_number,
 				'callsign'				=> $channel_id,
 				'id_by_label'			=> $channel_id_clean.'.'.$DOMAIN,
@@ -913,4 +979,40 @@ sub get_region {
 	print STDERR " REGION= $region_id $region_name \n" if $opt_debug;
 
 	return ( $region_id );
+}
+
+
+# get data from url (with retries on fetch fail)
+sub fetch_url_json ($;$$$$) {
+	# fetch a url with up to 5 retries
+	my ($url, $method, $varhash, $filter, $utf8) = @_;
+	$XMLTV::Get_nice::FailOnError = 0;
+	my $content;
+	my $maxretry = 5;
+	my $retry = 0;
+	if (defined $method && lc($method) eq 'post') {
+		# NOT TESTED
+		while ( (not defined($content = XMLTV::Get_nice::post_nice_json($url, $varhash))) || (length($content) == 0) ) {
+			my $r = $XMLTV::Get_nice::Response;
+			print STDERR "HTTP error: ".$r->status_line."\n";
+			$retry++;
+			#return undef if $retry > $maxretry;
+			die "could not fetch $url, error: " . $r->status_line . ", aborting\n" if $retry > $maxretry;
+			print STDERR "Retrying URL: $url (attempt $retry of $maxretry) \n";
+		}
+
+	} else {
+
+		while ( (not defined($content = XMLTV::Get_nice::get_nice_json($url, $filter, $utf8))) || (length($content) == 0) ) {
+			my $r = $XMLTV::Get_nice::Response;
+			print STDERR "HTTP error: ".$r->status_line."\n";
+			$retry++;
+			#return undef if $retry > $maxretry;
+			die "could not fetch $url, error: " . $r->status_line . ", aborting\n" if $retry > $maxretry;
+			print STDERR "Retrying URL: $url (attempt $retry of $maxretry) \n";
+		}
+
+	}
+
+	return $content;
 }
